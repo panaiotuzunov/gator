@@ -28,7 +28,7 @@ func Read() (Config, error) {
 	return config, nil
 }
 
-func (c Config) SetUser(user string) error {
+func (c *Config) SetUser(user string) error {
 	userHomeDir, err := os.UserHomeDir()
 	if err != nil {
 		return err
