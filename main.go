@@ -22,23 +22,18 @@ func main() {
 	}
 	db, err := sql.Open("postgres", configStruct.DbUrl)
 	if err != nil {
-		fmt.Printf("Could connect to SQL DB - %v\n", err)
+		fmt.Printf("Could not connect to SQL DB - %v\n", err)
 	}
 	stateStruct.db = database.New(db)
 	cmds.register("login", handlerLogin)
-	if len(os.Args) < 2 {
-		fmt.Println("error: not enough arguments")
-		os.Exit(1)
-	}
 	cmds.register("register", handlerRegister)
-	if len(os.Args) < 2 {
-		fmt.Println("error: not enough arguments")
-		os.Exit(1)
-	}
+	cmds.register("reset", handlerReset)
+	cmds.register("users", handlerUsers)
 	cmd := command{name: os.Args[1], args: os.Args[2:]}
 	err = cmds.run(&stateStruct, cmd)
 	if err != nil {
 		fmt.Printf("running command %v failed with %v\n", cmd.name, err)
 		os.Exit(1)
 	}
+	os.Exit(0)
 }

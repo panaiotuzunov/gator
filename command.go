@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/google/uuid"
@@ -33,7 +32,7 @@ func (c *commands) run(s *state, cmd command) error {
 	}
 	err := function(s, cmd)
 	if err != nil {
-		return fmt.Errorf("%v", err)
+		return err
 	}
 	return nil
 }
@@ -49,8 +48,7 @@ func handlerLogin(s *state, cmd command) error {
 	usernameStr := cmd.args[0]
 	_, err := s.db.GetUserByName(context.Background(), sql.NullString{String: usernameStr, Valid: true})
 	if err == sql.ErrNoRows {
-		fmt.Printf("User %s does not exist.\n", usernameStr)
-		os.Exit(1)
+		return fmt.Errorf("User %s does not exist", usernameStr)
 	} else if err != nil {
 		return fmt.Errorf("error: database error - %v", err)
 	}
@@ -77,19 +75,41 @@ func handlerRegister(s *state, cmd command) error {
 		}
 		CreatedUserData, err := s.db.CreateUser(context.Background(), userData)
 		if err != nil {
-			fmt.Printf("Error creating user %s.\n", usernameStr)
-			os.Exit(1)
+			return fmt.Errorf("error creating user %s", usernameStr)
 		}
 		err = s.cfg.SetUser(usernameStr)
 		if err != nil {
 			return fmt.Errorf("error updating config: %v", err)
 		}
-		fmt.Printf("User %s created successfully. User parameters:\n%v", usernameStr, CreatedUserData)
+		fmt.Printf("User %s created successfully. User parameters:\n%v\n", usernameStr, CreatedUserData)
 	} else if err != nil {
 		return fmt.Errorf("error: database error - %v", err)
 	} else {
-		fmt.Printf("User %s already exists.\n", usernameStr)
-		os.Exit(1)
+		return fmt.Errorf("error: User %s already exists", usernameStr)
+	}
+	return nil
+}
+
+func handlerReset(s *state, cmd command) error {
+	err := s.db.DeleteUsers(context.Background())
+	if err != nil {
+		return fmt.Errorf("error: deletion of users failed - %v", err)
+	}
+	fmt.Println("Users deleted successfully")
+	return nil
+}
+
+func handlerUsers(s *state, cmd command) error {
+	users, err := s.db.GetUsers(context.Background())
+	if err != nil {
+		return fmt.Errorf("error: Reading users failed - %v", err)
+	}
+	for _, user := range users {
+		if user.String == s.cfg.CurrentUserName {
+			fmt.Printf("* %s (current)\n", user.String)
+			continue
+		}
+		fmt.Printf("* %s\n", user.String)
 	}
 	return nil
 }
