@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/panaiotuzunov/gator/internal/config"
 	"github.com/panaiotuzunov/gator/internal/database"
+	"github.com/panaiotuzunov/gator/internal/fetch"
 )
 
 type state struct {
@@ -111,5 +112,14 @@ func handlerUsers(s *state, cmd command) error {
 		}
 		fmt.Printf("* %s\n", user.String)
 	}
+	return nil
+}
+
+func handlerAgg(s *state, cmd command) error {
+	feed, err := fetch.FetchFeed(context.Background(), "https://www.wagslane.dev/index.xml")
+	if err != nil {
+		return fmt.Errorf("error fetching feed - %v", err)
+	}
+	fmt.Println(feed)
 	return nil
 }
