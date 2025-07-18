@@ -47,9 +47,9 @@ func handlerLogin(s *state, cmd command) error {
 		return fmt.Errorf("error: the login handler accepts exactly one argument - username")
 	}
 	usernameStr := cmd.args[0]
-	_, err := s.db.GetUserByName(context.Background(), sql.NullString{String: usernameStr, Valid: true})
+	_, err := s.db.GetUserByName(context.Background(), usernameStr)
 	if err == sql.ErrNoRows {
-		return fmt.Errorf("User %s does not exist", usernameStr)
+		return fmt.Errorf("error: user %s does not exist", usernameStr)
 	} else if err != nil {
 		return fmt.Errorf("error: database error - %v", err)
 	}
@@ -66,13 +66,13 @@ func handlerRegister(s *state, cmd command) error {
 		return fmt.Errorf("error: the register handler accepts exactly one argument - username")
 	}
 	usernameStr := cmd.args[0]
-	_, err := s.db.GetUserByName(context.Background(), sql.NullString{String: usernameStr, Valid: true})
+	_, err := s.db.GetUserByName(context.Background(), usernameStr)
 	if err == sql.ErrNoRows {
 		userData := database.CreateUserParams{
 			ID:        uuid.New(),
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),
-			Name:      sql.NullString{String: usernameStr, Valid: true},
+			Name:      usernameStr,
 		}
 		CreatedUserData, err := s.db.CreateUser(context.Background(), userData)
 		if err != nil {
@@ -106,11 +106,11 @@ func handlerUsers(s *state, cmd command) error {
 		return fmt.Errorf("error: Reading users failed - %v", err)
 	}
 	for _, user := range users {
-		if user.String == s.cfg.CurrentUserName {
-			fmt.Printf("* %s (current)\n", user.String)
+		if user == s.cfg.CurrentUserName {
+			fmt.Printf("* %s (current)\n", user)
 			continue
 		}
-		fmt.Printf("* %s\n", user.String)
+		fmt.Printf("* %s\n", user)
 	}
 	return nil
 }
@@ -121,5 +121,29 @@ func handlerAgg(s *state, cmd command) error {
 		return fmt.Errorf("error fetching feed - %v", err)
 	}
 	fmt.Println(feed)
+	return nil
+}
+
+func handlerAddFeed(s *state, cmd command) error {
+	if len(cmd.args) != 2 {
+		return fmt.Errorf("error: the addfeed command accepts exactly two argument - name, url")
+	}
+	currentUserStruct, err := s.db.GetUserByName(context.Background(), s.cfg.CurrentUserName)
+	if err != nil {
+		return fmt.Errorf("error reading user by name from DB - %v", err)
+	}
+	feedParams := database.CreateFeedParams{
+		ID:        uuid.New(),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+		Name:      cmd.args[0],
+		Url:       cmd.args[1],
+		UserID:    currentUserStruct.ID,
+	}
+	feed, err := s.db.CreateFeed(context.Background(), feedParams)
+	if err != nil {
+		return fmt.Errorf("error creating feed - %v", err)
+	}
+	fmt.Printf("%+v\n", feed)
 	return nil
 }
