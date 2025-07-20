@@ -124,13 +124,9 @@ func handlerAgg(s *state, cmd command) error {
 	return nil
 }
 
-func handlerAddFeed(s *state, cmd command) error {
+func handlerAddFeed(s *state, cmd command, user database.User) error {
 	if len(cmd.args) != 2 {
 		return fmt.Errorf("error: the addfeed command accepts exactly two argument - name, url")
-	}
-	currentUserStruct, err := s.db.GetUserByName(context.Background(), s.cfg.CurrentUserName)
-	if err != nil {
-		return fmt.Errorf("error reading user by name from DB - %v", err)
 	}
 	feedParams := database.CreateFeedParams{
 		ID:        uuid.New(),
@@ -138,7 +134,7 @@ func handlerAddFeed(s *state, cmd command) error {
 		UpdatedAt: time.Now(),
 		Name:      cmd.args[0],
 		Url:       cmd.args[1],
-		UserID:    currentUserStruct.ID,
+		UserID:    user.ID,
 	}
 	feed, err := s.db.CreateFeed(context.Background(), feedParams)
 	if err != nil {
@@ -148,7 +144,7 @@ func handlerAddFeed(s *state, cmd command) error {
 		ID:        uuid.New(),
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
-		UserID:    currentUserStruct.ID,
+		UserID:    user.ID,
 		FeedID:    feed.ID,
 	}
 	_, err = s.db.CreateFeedFollow(context.Background(), feedFollowParams)
@@ -174,13 +170,9 @@ func handlerGetFeeds(s *state, cmd command) error {
 	return nil
 }
 
-func handlerFollow(s *state, cmd command) error {
+func handlerFollow(s *state, cmd command, user database.User) error {
 	if len(cmd.args) != 1 {
 		return fmt.Errorf("error: the follow command accepts exactly one argument - url")
-	}
-	currentUser, err := s.db.GetUserByName(context.Background(), s.cfg.CurrentUserName)
-	if err != nil {
-		return fmt.Errorf("error getting current user data - %v", err)
 	}
 	feedData, err := s.db.GetFeedByUrl(context.Background(), cmd.args[0])
 	if err != nil {
@@ -190,7 +182,7 @@ func handlerFollow(s *state, cmd command) error {
 		ID:        uuid.New(),
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
-		UserID:    currentUser.ID,
+		UserID:    user.ID,
 		FeedID:    feedData.ID,
 	}
 	feedFollowResult, err := s.db.CreateFeedFollow(context.Background(), feedFollowParams)
@@ -201,12 +193,8 @@ func handlerFollow(s *state, cmd command) error {
 	return nil
 }
 
-func handlerFollowing(s *state, cmd command) error {
-	userData, err := s.db.GetUserByName(context.Background(), s.cfg.CurrentUserName)
-	if err != nil {
-		return fmt.Errorf("error getting current user data - %v", err)
-	}
-	feedFollowsResult, err := s.db.GetFeedFollowsForUser(context.Background(), userData.ID)
+func handlerFollowing(s *state, cmd command, user database.User) error {
+	feedFollowsResult, err := s.db.GetFeedFollowsForUser(context.Background(), user.ID)
 	if err != nil {
 		return fmt.Errorf("error getting current user feed follows - %v", err)
 	}
@@ -214,4 +202,17 @@ func handlerFollowing(s *state, cmd command) error {
 		fmt.Printf("%+v\n", feedFollow)
 	}
 	return nil
+}
+
+func middlewareLoggedIn(handler func(s *state, cmd command, user database.User) error) func(*state, command) error {
+	return func(s *state, cmd command) error {
+		if s.cfg.CurrentUserName == "" {
+			return fmt.Errorf("no user is currently logged in")
+		}
+		currentUserStruct, err := s.db.GetUserByName(context.Background(), s.cfg.CurrentUserName)
+		if err != nil {
+			return fmt.Errorf("error reading user by name from DB - %v", err)
+		}
+		return handler(s, cmd, currentUserStruct)
+	}
 }
