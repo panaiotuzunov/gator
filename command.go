@@ -204,6 +204,25 @@ func handlerFollowing(s *state, cmd command, user database.User) error {
 	return nil
 }
 
+func handlerUnfollow(s *state, cmd command, user database.User) error {
+	if len(cmd.args) != 1 {
+		return fmt.Errorf("error: the unfollow command accepts exactly one argument - url")
+	}
+	feed, err := s.db.GetFeedByUrl(context.Background(), cmd.args[0])
+	if err != nil {
+		return fmt.Errorf("error getting feed data - %v", err)
+	}
+	deleteFeedParams := database.DeleteFeedFollowParams{
+		UserID: user.ID,
+		FeedID: feed.ID,
+	}
+	if err := s.db.DeleteFeedFollow(context.Background(), deleteFeedParams); err != nil {
+		return fmt.Errorf("error unfolowing feed - %v", err)
+	}
+	fmt.Println("Feed unfollowed successfully.")
+	return nil
+}
+
 func middlewareLoggedIn(handler func(s *state, cmd command, user database.User) error) func(*state, command) error {
 	return func(s *state, cmd command) error {
 		if s.cfg.CurrentUserName == "" {
