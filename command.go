@@ -116,12 +116,18 @@ func handlerUsers(s *state, cmd command) error {
 }
 
 func handlerAgg(s *state, cmd command) error {
-	feed, err := fetch.FetchFeed(context.Background(), "https://www.wagslane.dev/index.xml")
-	if err != nil {
-		return fmt.Errorf("error fetching feed - %v", err)
+	if len(cmd.args) != 1 {
+		return fmt.Errorf("error: the aggregate command accepts exactly one argument - time between requests (1m0s)")
 	}
-	fmt.Println(feed)
-	return nil
+	time_between_reqs, err := time.ParseDuration(cmd.args[0])
+	if err != nil {
+		return fmt.Errorf("error parsing time between requests arguments - %v", err)
+	}
+	fmt.Printf("Collecting feeds every %s\n", cmd.args[0])
+	ticker := time.NewTicker(time_between_reqs)
+	for ; ; <-ticker.C {
+		scrapeFeeds(s)
+	}
 }
 
 func handlerAddFeed(s *state, cmd command, user database.User) error {
@@ -197,6 +203,9 @@ func handlerFollowing(s *state, cmd command, user database.User) error {
 	feedFollowsResult, err := s.db.GetFeedFollowsForUser(context.Background(), user.ID)
 	if err != nil {
 		return fmt.Errorf("error getting current user feed follows - %v", err)
+	}
+	if len(feedFollowsResult) == 0 {
+		return fmt.Errorf("error: the current user doesn't follow any feeds")
 	}
 	for _, feedFollow := range feedFollowsResult {
 		fmt.Printf("%+v\n", feedFollow)
