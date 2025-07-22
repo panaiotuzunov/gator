@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -232,6 +234,38 @@ func handlerUnfollow(s *state, cmd command, user database.User) error {
 	return nil
 }
 
+func handlerBrowse(s *state, cmd command, user database.User) error {
+	postLimit := int32(2)
+	if len(cmd.args) > 0 {
+		limit, err := strconv.Atoi(cmd.args[0])
+		if err != nil {
+			return fmt.Errorf("error parsing posts limit - %v", err)
+		}
+		postLimit = int32(limit)
+	}
+	getPostsParams := database.GetPostsForUserParams{
+		UserID: user.ID,
+		Limit:  postLimit,
+	}
+	posts, err := s.db.GetPostsForUser(context.Background(), getPostsParams)
+	if err != nil {
+		return fmt.Errorf("error getting posts - %v", err)
+	}
+	if len(posts) == 0 {
+		fmt.Println("There are no posts to display.")
+	}
+	for i, post := range posts {
+		i++
+		fmt.Printf("=== Post %d ===\n", i)
+		fmt.Printf("Title: %s\n", post.Title)
+		fmt.Printf("URL: %s\n", post.Url)
+		fmt.Printf("Description: %s\n", post.Description)
+		fmt.Printf("Published: %v\n", post.PublishedAt.Format("02/01/2006"))
+		fmt.Println()
+	}
+	return nil
+}
+
 func middlewareLoggedIn(handler func(s *state, cmd command, user database.User) error) func(*state, command) error {
 	return func(s *state, cmd command) error {
 		if s.cfg.CurrentUserName == "" {
@@ -260,7 +294,30 @@ func scrapeFeeds(s *state) error {
 		return err
 	}
 	for _, item := range feed.Channel.Item {
-		fmt.Println(item.Title)
+		dateStr := "Mon, 02 Jan 2006 15:04:05 MST"
+		parsedTime, err := time.Parse(dateStr, item.PubDate)
+		if err != nil {
+			return fmt.Errorf("error parsing date: %v", err)
+		}
+		postParams := database.CreatePostParams{
+			ID:          uuid.New(),
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+			Title:       item.Title,
+			Url:         item.Link,
+			Description: item.Description,
+			PublishedAt: parsedTime,
+			FeedID:      nextFeed.ID,
+		}
+		_, err = s.db.CreatePost(context.Background(), postParams)
+		if err != nil {
+			if strings.Contains(err.Error(), "UNIQUE constraint failed") ||
+				strings.Contains(err.Error(), "duplicate key") {
+				fmt.Printf("Post %s already exists. Skipping... \n", item.Title)
+				continue
+			}
+			fmt.Printf("Creating post %s failed with error - %v. Skipping...\n", item.Title, err)
+		}
 	}
 	return nil
 }
