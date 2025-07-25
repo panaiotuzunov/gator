@@ -128,7 +128,9 @@ func handlerAgg(s *state, cmd command) error {
 	fmt.Printf("Collecting feeds every %s\n", cmd.args[0])
 	ticker := time.NewTicker(time_between_reqs)
 	for ; ; <-ticker.C {
-		scrapeFeeds(s)
+		if err := scrapeFeeds(s); err != nil {
+			return fmt.Errorf("error scraping feeds - %v", err)
+		}
 	}
 }
 
@@ -318,6 +320,7 @@ func scrapeFeeds(s *state) error {
 			}
 			fmt.Printf("Creating post %s failed with error - %v. Skipping...\n", item.Title, err)
 		}
+
 	}
 	return nil
 }
