@@ -296,8 +296,7 @@ func scrapeFeeds(s *state) error {
 		return err
 	}
 	for _, item := range feed.Channel.Item {
-		dateStr := "Mon, 02 Jan 2006 15:04:05 MST"
-		parsedTime, err := time.Parse(dateStr, item.PubDate)
+		parsedTime, err := parsePublishDate(item.PubDate)
 		if err != nil {
 			return fmt.Errorf("error parsing date: %v", err)
 		}
@@ -323,4 +322,21 @@ func scrapeFeeds(s *state) error {
 
 	}
 	return nil
+}
+
+func parsePublishDate(dateStr string) (time.Time, error) {
+	formats := []string{
+		time.RFC822Z,                     // "Mon, 02 Jan 2006 15:04:05 -0700" (numeric timezone)
+		time.RFC822,                      // "Mon, 02 Jan 2006 15:04:05 MST" (timezone abbreviation)
+		time.RFC3339,                     // "2006-01-02T15:04:05Z07:00"
+		"Mon, 2 Jan 2006 15:04:05 -0700", // Single digit day with numeric timezone
+	}
+
+	for _, format := range formats {
+		if t, err := time.Parse(format, dateStr); err == nil {
+			return t, nil
+		}
+	}
+
+	return time.Time{}, fmt.Errorf("unable to parse date: %s", dateStr)
 }
